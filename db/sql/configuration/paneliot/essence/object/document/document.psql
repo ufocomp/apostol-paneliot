@@ -1,0 +1,4 @@
+\ir './client/client.psql'
+\ir './card/card.psql'
+\ir './device/device.psql'
+\ir './message/message.psql'
