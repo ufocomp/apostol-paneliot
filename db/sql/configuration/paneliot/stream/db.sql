@@ -128,14 +128,11 @@ $$ LANGUAGE plpgsql
 --------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION stream.lpwan (
-  pRequest          bytea,
-  OUT identity      text,
-  OUT response      bytea
-) RETURNS           record
+  pData         bytea
+) RETURNS       bytea
 AS $$
 BEGIN
-  identity := null;
-  response := null;
+  RETURN null;
 END;
 $$ LANGUAGE plpgsql
    SECURITY DEFINER
@@ -147,21 +144,21 @@ $$ LANGUAGE plpgsql
 /**
  * Разбор пакета.
  * @param {text} pProtocol - Протокол (формат данных)
+ * @param {text} pIdentity - Идентификатор (host:port)
  * @param {text} pBase64 - Данные в формате BASE64
  * @return {text} - Ответ в формате BASE64
  */
 CREATE OR REPLACE FUNCTION stream.Parse (
-  pProtocol	text,
+  pProtocol     text,
+  pIdentity     text,
   pBase64       text
-) RETURNS	text
+) RETURNS       text
 AS $$
 DECLARE
-  vIdentity	text;
-
   tsBegin	timestamp;
 
   vError	text;
-  vSession	text DEFAULT 'Успешно.';
+  vSession	text;
 
   bRequest	bytea;
   bResponse	bytea;
@@ -175,13 +172,13 @@ BEGIN
   CASE pProtocol
   WHEN 'lpwan' THEN
 
-    SELECT identity, response INTO vIdentity, bResponse FROM stream.lpwan(bRequest);
+    bResponse := stream.lpwan(bRequest);
 
   ELSE
     PERFORM UnknownProtocol(pProtocol);
   END CASE;
 
-  PERFORM stream.WriteTolog(pProtocol, coalesce(vIdentity, 'null'), bRequest, bResponse, age(clock_timestamp(), tsBegin));
+  PERFORM stream.WriteTolog(pProtocol, coalesce(pIdentity, 'null'), bRequest, bResponse, age(clock_timestamp(), tsBegin));
 
   RETURN encode(bResponse, 'base64');
 EXCEPTION
