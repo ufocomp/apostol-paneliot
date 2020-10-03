@@ -6,8 +6,11 @@
 \echo [M] call api.sql
 \ir './api/api.psql'
 
+\echo [M] call stream.sql
+\ir './stream/stream.psql'
+
 \echo [M] call .oauth2.sql
 \ir .oauth2.sql
 
-\echo [M] call stream.sql
-\ir './stream/stream.psql'
+\echo [M] call paneliot.sql
+\ir paneliot.sql

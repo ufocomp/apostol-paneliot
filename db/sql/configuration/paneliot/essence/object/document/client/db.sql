@@ -41,18 +41,17 @@ CREATE INDEX ON db.client USING GIN (info jsonb_path_ops);
 
 CREATE OR REPLACE FUNCTION ft_client_insert()
 RETURNS trigger AS $$
-DECLARE
 BEGIN
-  IF NEW.ID IS NULL OR NEW.ID = 0 THEN
-    SELECT NEW.DOCUMENT INTO NEW.ID;
+  IF NEW.id IS NULL OR NEW.id = 0 THEN
+    SELECT NEW.document INTO NEW.id;
   END IF;
 
-  IF NULLIF(NEW.CODE, '') IS NULL THEN
-    NEW.CODE := encode(gen_random_bytes(12), 'hex');
+  IF NULLIF(NEW.code, '') IS NULL THEN
+    NEW.code := encode(gen_random_bytes(12), 'hex');
   END IF;
 
-  IF NEW.USERID IS NOT NULL THEN
-    UPDATE db.object SET owner = NEW.USERID WHERE id = NEW.DOCUMENT;
+  IF NEW.userid IS NOT NULL THEN
+    UPDATE db.object SET owner = NEW.userid WHERE id = NEW.document;
   END IF;
 
   RAISE DEBUG 'Создан клиент Id: %', NEW.id;
@@ -75,15 +74,38 @@ CREATE TRIGGER t_client_insert
 CREATE OR REPLACE FUNCTION ft_client_update()
 RETURNS trigger AS $$
 DECLARE
-  nParent	numeric;
+  vStr    text;
 BEGIN
-  IF OLD.USERID IS NULL AND NEW.USERID IS NOT NULL THEN
-    PERFORM CheckObjectAccess(NEW.id, B'010', NEW.USERID);
-    SELECT parent INTO nParent FROM db.object WHERE id = NEW.DOCUMENT;
-    IF nParent IS NOT NULL THEN
-      PERFORM CheckObjectAccess(nParent, B'010', NEW.USERID);
+  IF NOT CheckObjectAccess(NEW.document, B'010') THEN
+    PERFORM AccessDenied();
+  END IF;
+
+  IF OLD.userid IS NULL AND NEW.userid IS NOT NULL THEN
+    UPDATE db.object SET owner = NEW.userid WHERE id = NEW.document;
+  END IF;
+
+  IF NEW.email IS NOT NULL THEN
+    IF jsonb_typeof(NEW.email) = 'array' THEN
+      vStr = NEW.email->>0;
+    ELSE
+      vStr = NEW.email->>'default';
     END IF;
-    UPDATE db.object SET owner = NEW.USERID WHERE id = NEW.DOCUMENT;
+
+    IF vStr IS NOT NULL THEN
+      UPDATE db.user SET email = vStr WHERE id = NEW.userid;
+    END IF;
+  END IF;
+
+  IF NEW.phone IS NOT NULL THEN
+    IF jsonb_typeof(NEW.phone) = 'array' THEN
+      vStr = NEW.phone->>0;
+    ELSE
+      vStr = NEW.phone->>'mobile';
+    END IF;
+
+    IF vStr IS NOT NULL THEN
+      UPDATE db.user SET phone = vStr WHERE id = NEW.userid;
+    END IF;
   END IF;
 
   RAISE DEBUG 'Обнавлён клиент Id: %', NEW.id;
@@ -575,8 +597,10 @@ CREATE OR REPLACE FUNCTION EditClient (
 AS $$
 DECLARE
   nId		    numeric;
-  nClass	    numeric;
   nMethod	    numeric;
+
+  old           db.client%rowtype;
+  new           db.client%rowtype;
 
   -- current
   cParent	    numeric;
@@ -614,17 +638,20 @@ BEGIN
     UPDATE db.document SET description = CheckNull(pDescription) WHERE id = pId;
   END IF;
 
-  UPDATE db.client
-     SET Code = pCode,
-         UserId = CheckNull(pUserId),
-         Phone = CheckNull(coalesce(pPhone, Phone, '<null>')),
-         Email = CheckNull(coalesce(pEmail, Email, '<null>')),
-         Info = CheckNull(coalesce(pInfo, Info, '<null>'))
-   WHERE Id = pId;
+  SELECT * INTO old FROM db.client WHERE id = pId;
 
-  nClass := GetObjectClass(pId);
-  nMethod := GetMethod(nClass, null, GetAction('edit'));
-  PERFORM ExecuteMethod(pId, nMethod);
+  UPDATE db.client
+     SET code = pCode,
+         userid = CheckNull(pUserId),
+         phone = CheckNull(coalesce(pPhone, phone, '{}')),
+         email = CheckNull(coalesce(pEmail, email, '{}')),
+         info = CheckNull(coalesce(pInfo, info, '{}'))
+   WHERE id = pId;
+
+  SELECT * INTO new FROM db.client WHERE id = pId;
+
+  nMethod := GetMethod(GetObjectClass(pId), null, GetAction('edit'));
+  PERFORM ExecuteMethod(pId, nMethod, jsonb_build_object('old', row_to_json(old), 'new', row_to_json(new)));
 END;
 $$ LANGUAGE plpgsql
    SECURITY DEFINER
@@ -667,6 +694,24 @@ $$ LANGUAGE plpgsql
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
+-- GetClientByUserId -----------------------------------------------------------
+--------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION GetClientByUserId (
+  pUserId       numeric
+) RETURNS       numeric
+AS $$
+DECLARE
+  nId           numeric;
+BEGIN
+  SELECT id INTO nId FROM db.client WHERE userid = pUserId;
+  RETURN nId;
+END;
+$$ LANGUAGE plpgsql
+   SECURITY DEFINER
+   SET search_path = kernel, pg_temp;
+
+--------------------------------------------------------------------------------
 -- ClientName ------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -686,7 +731,7 @@ GRANT SELECT ON ClientName TO administrator;
 
 CREATE OR REPLACE VIEW Client (Id, Document, Code, UserId,
   FullName, ShortName, LastName, FirstName, MiddleName,
-  Phone, Email, Info,
+  Phone, Email, Info, EmailVerified, PhoneVerified,
   Locale, LocaleCode, LocaleName, LocaleDescription
 )
 AS
@@ -695,10 +740,11 @@ AS
   )
   SELECT c.id, c.document, c.code, c.userid,
          n.name, n.short, n.last, n.first, n.middle,
-         c.phone, c.email, c.info,
+         c.phone, c.email, c.info, up.email_verified, up.phone_verified,
          n.locale, l.code, l.name, l.description
     FROM db.client c INNER JOIN db.client_name n ON n.client = c.id AND n.validfromdate <= now() AND n.validToDate > now()
                      INNER JOIN lc               ON n.locale = lc.id
+                     INNER JOIN db.profile up    ON c.userid = up.userid
                      INNER JOIN db.locale l      ON l.id = n.locale;
 
 GRANT SELECT ON Client TO administrator;
@@ -713,7 +759,7 @@ CREATE OR REPLACE VIEW ObjectClient (Id, Object, Parent,
   Type, TypeCode, TypeName, TypeDescription,
   Code, UserId,
   FullName, ShortName, LastName, FirstName, MiddleName,
-  Phone, Email, Info,
+  Phone, Email, Info, EmailVerified, PhoneVerified,
   Locale, LocaleCode, LocaleName, LocaleDescription,
   Label, Description,
   StateType, StateTypeCode, StateTypeName,
@@ -729,7 +775,7 @@ AS
          d.type, d.typecode, d.typename, d.typedescription,
          c.code, c.userid,
          c.fullname, c.shortname, c.lastname, c.firstname, c.middlename,
-         c.phone, c.email, c.info,
+         c.phone, c.email, c.info, emailverified, phoneverified,
          c.locale, c.localecode, c.localename, c.localedescription,
          d.label, d.description,
          d.statetype, d.statetypecode, d.statetypename,
@@ -742,10 +788,10 @@ AS
 GRANT SELECT ON ObjectClient TO administrator;
 
 --------------------------------------------------------------------------------
--- ClientTariffs ---------------------------------------------------------------
+-- ClientTariff ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE VIEW ClientTariffs (Id, Client, Tariff, TypeCode,
+CREATE OR REPLACE VIEW ClientTariff (Id, Client, Tariff, TypeCode,
     Code, Name, Description, Cost,
     validFromDate, validToDate
 )
@@ -756,7 +802,7 @@ AS
     FROM db.object_link ol INNER JOIN db.reference r ON r.id = ol.linked
                            INNER JOIN db.tariff f ON f.reference = r.id;
 
-GRANT SELECT ON ClientTariffs TO administrator;
+GRANT SELECT ON ClientTariff TO administrator;
 
 --------------------------------------------------------------------------------
 -- FUNCTION GetClientTariff ----------------------------------------------------
@@ -791,22 +837,22 @@ $$ LANGUAGE plpgsql
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- GetClientTariffs ------------------------------------------------------------
+-- GetClientTariff -------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION GetClientTariffs (
+CREATE OR REPLACE FUNCTION GetClientTariff (
   pClient	numeric,
   pDate		timestamp default oper_date()
 ) RETURNS	text[]
 AS $$
 DECLARE
   arResult	text[];
-  r		    ClientTariffs%rowtype;
+  r		    ClientTariff%rowtype;
 BEGIN
   FOR r IN
     SELECT Tariff as Id, TypeCode,
            Code, Name, Description, Cost, validFromDate, validToDate
-      FROM ClientTariffs
+      FROM ClientTariff
      WHERE client = pClient
        AND validFromDate <= pDate
        AND ValidToDate > pDate
@@ -821,10 +867,10 @@ $$ LANGUAGE plpgsql
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- GetClientTariffsJson --------------------------------------------------------
+-- GetClientTariffJson ---------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION GetClientTariffsJson (
+CREATE OR REPLACE FUNCTION GetClientTariffJson (
   pClient	numeric,
   pDate		timestamp default oper_date()
 ) RETURNS	json
@@ -836,7 +882,7 @@ BEGIN
   FOR r IN
     SELECT Tariff as Id, TypeCode,
            Code, Name, Description, Cost, validFromDate, validToDate
-      FROM ClientTariffs
+      FROM ClientTariff
      WHERE client = pClient
        AND validFromDate <= pDate
        AND ValidToDate > pDate
@@ -851,16 +897,16 @@ $$ LANGUAGE plpgsql
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- GetClientTariffsJsonb -------------------------------------------------------
+-- GetClientTariffJsonb --------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION GetClientTariffsJsonb (
+CREATE OR REPLACE FUNCTION GetClientTariffJsonb (
   pObject	numeric,
   pDate		timestamp default oper_date()
 ) RETURNS	jsonb
 AS $$
 BEGIN
-  RETURN GetClientTariffsJson(pObject, pDate);
+  RETURN GetClientTariffJson(pObject, pDate);
 END;
 $$ LANGUAGE plpgsql
    SECURITY DEFINER

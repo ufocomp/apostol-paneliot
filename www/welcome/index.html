@@ -3,7 +3,7 @@
 <head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
-    <meta name="description" content="PanelIoT: Авторизация">
+    <meta name="description" content="Panel IoT: Добро пожаловать">
 
     <!-- Required meta tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -16,7 +16,7 @@
     <meta name="signin-scope" content="api">
     <meta name="signin-client_id" content="web-paneliot.ru">
 
-    <title>Авторизация | PanelIoT</title>
+    <title>Добро пожаловать | Panel IoT</title>
 
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="/assets/vendor/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
@@ -35,7 +35,7 @@
 <div class="form-signin">
     <form id="formSignIn" class="needs-validation" novalidate>
         <div class="text-center mb-4">
-            <h1 class="h3 mb-3 font-weight-normal">Добро пожаловать в PanelIoT</h1>
+            <h1 class="h3 mb-3 font-weight-normal">Добро пожаловать в Panel IoT</h1>
         </div>
 
         <button id="btnSignIn" class="btn btn-lg btn-primary btn-block" type="button" onclick="oauthSignIn()">Войти</button>
@@ -45,12 +45,12 @@
 
         <div id="g-signin2" class="mt-3" data-width="200" data-height="48" data-longtitle="false"></div>
 
-        <div class="text-center mb-4">
+        <div class="text-center mt-3">
             <p class="text-center">Продолжая, вы соглашаетесь с <a href="#">Условиями использования</a> и <a href="#">Политикой конфиденциальности</a>.</p>
         </div>
 
         <hr class="my-1">
-        <p class="mt-3 text-muted text-center">© PanelIoT 2020</p>
+        <p class="mt-3 text-muted text-center">© Panel IoT 2020</p>
     </form>
 </div>
 <!-- Optional JavaScript -->
@@ -99,7 +99,7 @@
     }
 
     /*
-     * Create form to request access token from PanelIoT's OAuth 2.0 server.
+     * Create form to request access token from Panel IoT's OAuth 2.0 server.
      */
     function oauthSignIn() {
         let oauth2Endpoint = '/oauth2/authorize';
@@ -149,6 +149,18 @@
         }
     }
 
+    function SetOfGoogleUser(GoogleUser) {
+        const profile = GoogleUser.getBasicProfile();
+        $("select[id='type']").val('physical');
+
+        $("input[id='username']").val(profile.getId());
+        $("input[id='first']").val(profile.getGivenName());
+        $("input[id='last']").val(profile.getFamilyName());
+        $("input[id='email']").val(profile.getEmail());
+
+        //SignUp($("meta[name='google-signin-client_id']").attr("content"), profile.getId());
+    }
+
     function onSuccess(GoogleUser) {
         const access_token = GoogleUser.getAuthResponse().access_token;
         const id_token = GoogleUser.getAuthResponse().id_token;
@@ -165,21 +177,8 @@
         console.log('Image URL: ' + profile.getImageUrl());
         console.log('Email: ' + profile.getEmail());
 
-        //SetOfGoogleUser(GoogleUser);
+        SetOfGoogleUser(GoogleUser);
         GoogleSignOut();
-    }
-
-    function SetOfGoogleUser(GoogleUser) {
-        const profile = GoogleUser.getBasicProfile();
-        $("select[id='type']").val('physical');
-        OnChangeType();
-
-        $("input[id='username']").val(profile.getId());
-        $("input[id='first']").val(profile.getGivenName());
-        $("input[id='last']").val(profile.getFamilyName());
-        $("input[id='email']").val(profile.getEmail());
-
-        //SignUp($("meta[name='google-signin-client_id']").attr("content"), profile.getId());
     }
 
     function onFailure(error) {

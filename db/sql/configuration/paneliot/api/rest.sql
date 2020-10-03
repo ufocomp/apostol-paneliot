@@ -28,6 +28,46 @@ BEGIN
     PERFORM RouteIsEmpty();
   END IF;
 
+  IF SubStr(pPath, 1, 7) = '/admin/' THEN
+
+    IF current_session() IS NULL THEN
+      PERFORM LoginFailed();
+    END IF;
+
+    IF session_user <> 'kernel' THEN
+      IF NOT IsUserRole(GetGroup('administrator')) THEN
+        PERFORM AccessDenied();
+      END IF;
+    END IF;
+
+    FOR r IN SELECT * FROM rest.admin(pPath, pPayload)
+    LOOP
+      RETURN NEXT r.admin;
+    END LOOP;
+
+    RETURN;
+  END IF;
+
+  IF SubStr(pPath, 1, 10) = '/workflow/' THEN
+
+    IF current_session() IS NULL THEN
+      PERFORM LoginFailed();
+    END IF;
+
+    IF session_user <> 'kernel' THEN
+      IF NOT IsUserRole(GetGroup('administrator')) THEN
+        PERFORM AccessDenied();
+      END IF;
+    END IF;
+
+    FOR r IN SELECT * FROM rest.workflow(pPath, pPayload)
+    LOOP
+      RETURN NEXT r.workflow;
+    END LOOP;
+
+    RETURN;
+  END IF;
+
   IF SubStr(pPath, 1, 9) = '/current/' THEN
 
     FOR r IN SELECT * FROM rest.current(pPath)
@@ -80,41 +120,15 @@ BEGIN
     RETURN;
   END IF;
 
-  IF SubStr(pPath, 1, 7) = '/admin/' THEN
+  IF SubStr(pPath, 1, 14) = '/verification/' THEN
 
     IF current_session() IS NULL THEN
       PERFORM LoginFailed();
     END IF;
 
-    IF session_user <> 'kernel' THEN
-      IF NOT IsUserRole(GetGroup('administrator')) THEN
-        PERFORM AccessDenied();
-      END IF;
-    END IF;
-
-    FOR r IN SELECT * FROM rest.admin(pPath, pPayload)
+    FOR r IN SELECT * FROM rest.verification(pPath, pPayload)
     LOOP
-      RETURN NEXT r.admin;
-    END LOOP;
-
-    RETURN;
-  END IF;
-
-  IF SubStr(pPath, 1, 10) = '/workflow/' THEN
-
-    IF current_session() IS NULL THEN
-      PERFORM LoginFailed();
-    END IF;
-
-    IF session_user <> 'kernel' THEN
-      IF NOT IsUserRole(GetGroup('administrator')) THEN
-        PERFORM AccessDenied();
-      END IF;
-    END IF;
-
-    FOR r IN SELECT * FROM rest.workflow(pPath, pPayload)
-    LOOP
-      RETURN NEXT r.workflow;
+      RETURN NEXT r.verification;
     END LOOP;
 
     RETURN;
@@ -147,6 +161,20 @@ BEGIN
     RETURN;
   END IF;
 
+  IF SubStr(pPath, 1, 9) = '/message/' THEN
+
+    IF current_session() IS NULL THEN
+      PERFORM LoginFailed();
+    END IF;
+
+    FOR r IN SELECT * FROM rest.message(pPath, pPayload)
+    LOOP
+      RETURN NEXT r.message;
+    END LOOP;
+
+    RETURN;
+  END IF;
+
   IF SubStr(pPath, 1, 10) = '/calendar/' THEN
 
     IF current_session() IS NULL THEN
@@ -156,6 +184,34 @@ BEGIN
     FOR r IN SELECT * FROM rest.calendar(pPath, pPayload)
     LOOP
       RETURN NEXT r.calendar;
+    END LOOP;
+
+    RETURN;
+  END IF;
+
+  IF SubStr(pPath, 1, 8) = '/vendor/' THEN
+
+    IF current_session() IS NULL THEN
+      PERFORM LoginFailed();
+    END IF;
+
+    FOR r IN SELECT * FROM rest.vendor(pPath, pPayload)
+    LOOP
+      RETURN NEXT r.vendor;
+    END LOOP;
+
+    RETURN;
+  END IF;
+
+  IF SubStr(pPath, 1, 7) = '/agent/' THEN
+
+    IF current_session() IS NULL THEN
+      PERFORM LoginFailed();
+    END IF;
+
+    FOR r IN SELECT * FROM rest.agent(pPath, pPayload)
+    LOOP
+      RETURN NEXT r.agent;
     END LOOP;
 
     RETURN;
@@ -203,34 +259,6 @@ BEGIN
     RETURN;
   END IF;
 
-  IF SubStr(pPath, 1, 8) = '/vendor/' THEN
-
-    IF current_session() IS NULL THEN
-      PERFORM LoginFailed();
-    END IF;
-
-    FOR r IN SELECT * FROM rest.vendor(pPath, pPayload)
-    LOOP
-      RETURN NEXT r.vendor;
-    END LOOP;
-
-    RETURN;
-  END IF;
-
-  IF SubStr(pPath, 1, 7) = '/model/' THEN
-
-    IF current_session() IS NULL THEN
-      PERFORM LoginFailed();
-    END IF;
-
-    FOR r IN SELECT * FROM rest.model(pPath, pPayload)
-    LOOP
-      RETURN NEXT r.model;
-    END LOOP;
-
-    RETURN;
-  END IF;
-
   IF SubStr(pPath, 1, 8) = '/tariff/' THEN
 
     IF current_session() IS NULL THEN
@@ -245,15 +273,15 @@ BEGIN
     RETURN;
   END IF;
 
-  IF SubStr(pPath, 1, 9) = '/message/' THEN
+  IF SubStr(pPath, 1, 7) = '/model/' THEN
 
     IF current_session() IS NULL THEN
       PERFORM LoginFailed();
     END IF;
 
-    FOR r IN SELECT * FROM rest.message(pPath, pPayload)
+    FOR r IN SELECT * FROM rest.model(pPath, pPayload)
     LOOP
-      RETURN NEXT r.message;
+      RETURN NEXT r.model;
     END LOOP;
 
     RETURN;
@@ -384,7 +412,13 @@ BEGIN
       PERFORM LoginFailed();
     END IF;
 
-    RETURN NEXT row_to_json(api.whoami());
+    FOR r IN SELECT * FROM jsonb_to_record(pPayload) AS x(fields jsonb)
+    LOOP
+      FOR e IN EXECUTE format('SELECT %s FROM api.whoami', JsonbToFields(r.fields, GetColumns('whoami', 'api')))
+      LOOP
+        RETURN NEXT row_to_json(e);
+      END LOOP;
+    END LOOP;
 
   WHEN '/api' THEN
 
@@ -588,14 +622,14 @@ BEGIN
 
       FOR r IN SELECT * FROM jsonb_to_recordset(pPayload) AS x(id numeric, method numeric, code text, form jsonb)
       LOOP
-        RETURN NEXT api.run_method(r.id, r.method, r.code, r.form);
+        RETURN NEXT api.run_method(r.id, coalesce(r.method, GetObjectMethod(r.id, GetAction(r.code))), r.form);
       END LOOP;
 
     ELSE
 
       FOR r IN SELECT * FROM jsonb_to_record(pPayload) AS x(id numeric, method numeric, code text, form jsonb)
       LOOP
-        RETURN NEXT api.run_method(r.id, r.method, r.code, r.form);
+        RETURN NEXT api.run_method(r.id, coalesce(r.method, GetObjectMethod(r.id, GetAction(r.code))), r.form);
       END LOOP;
 
     END IF;
