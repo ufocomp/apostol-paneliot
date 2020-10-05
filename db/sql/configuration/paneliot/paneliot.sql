@@ -122,10 +122,8 @@ BEGIN
       Lines[3] := 'Информация о вашей учетной записи:';
 	  Lines[4] := E'<b>Ваш API ключ</b>:\n';
 	  Lines[5] := 'С помощью API ключа Вы сможете выполнять REST API запросы и получать показания подключённых устройст.';
-	  Lines[6] := 'https://github.com/ufocomp/apostol-paneliot/blob/master/doc/REST-API-ru.md#api';
-	  Lines[7] := 'Инструкция доступна по этой ссылке.';
-	  Lines[8] := 'Если у вас возникли проблемы, свяжитесь с нами: ';
-	  Lines[9] := format(E'- Команда %s\n', pProject);
+	  Lines[6] := 'Если у вас возникли проблемы, свяжитесь с нами: ';
+	  Lines[7] := format(E'- Команда %s\n', pProject);
 
 	ELSE
 	  Lines[1] := 'Hey' || coalesce(format(E', %s', coalesce(pFullName, pUserName)), '') || E'!\n';
@@ -133,10 +131,8 @@ BEGIN
       Lines[3] := 'Your account info';
 	  Lines[4] := E'<b>Your API key</b>:\n';
 	  Lines[5] := 'Using the API key, you can execute REST API requests and receive readings from connected devices.';
-	  Lines[6] := 'https://github.com/ufocomp/apostol-paneliot/blob/master/doc/REST-API-en.md#api';
-	  Lines[7] := 'The instruction is available at this link.';
-	  Lines[8] := 'If you have any problems, please contact us: ';
-	  Lines[9] := format(E'- %s Team\n', pProject);
+	  Lines[6] := 'If you have any problems, please contact us: ';
+	  Lines[7] := format(E'- %s Team\n', pProject);
 	END IF;
 
 	vHTML := vHTML || E'    <div style="font-size: 16px; text-align: left">\n';
@@ -156,19 +152,16 @@ BEGIN
 	vHTML := vHTML || E'            <code style="margin: 5px 0">\n';
 	vHTML := vHTML || E'                ' || pSecret;
 	vHTML := vHTML || E'            </code>\n';
-	vHTML := vHTML || E'            <div style="margin: 5px 0">\n';
-	vHTML := vHTML || E'                ' || Lines[5];
-	vHTML := vHTML || E'            </div>\n';
 	vHTML := vHTML || E'            <div style="margin: 15px 0">\n';
-	vHTML := vHTML || E'                ' || format(E'<a href="%s">%s</a>\n', Lines[6], Lines[7]);
+	vHTML := vHTML || E'                ' || Lines[5];
 	vHTML := vHTML || E'            </div>\n';
 	vHTML := vHTML || E'        </div>\n';
 	vHTML := vHTML || E'        <div style="line-height: 150%">\n';
 	vHTML := vHTML || E'            <div style="margin: 15px 0">\n';
-	vHTML := vHTML || E'                ' || Lines[8] || format(E'<a href="mailto:%s" style="color: #007bff; text-decoration: none!important" rel="noreferrer">%s</a>\n', pSupport, pSupport);
+	vHTML := vHTML || E'                ' || Lines[6] || format(E'<a href="mailto:%s" style="color: #007bff; text-decoration: none!important" rel="noreferrer">%s</a>\n', pSupport, pSupport);
 	vHTML := vHTML || E'            </div>\n';
 	vHTML := vHTML || E'            <div style="color: #828282; margin: 15px 0 75px">\n';
-	vHTML := vHTML || E'                ' || Lines[9];
+	vHTML := vHTML || E'                ' || Lines[7];
 	vHTML := vHTML || E'            </div>\n';
 	vHTML := vHTML || E'        </div>\n';
 	vHTML := vHTML || E'    </div>\n';
