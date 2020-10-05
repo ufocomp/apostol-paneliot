@@ -571,14 +571,14 @@ CREATE OR REPLACE VIEW Device (Id, Document,
   Vendor, VendorCode, VendorName,
   Model, ModelCode, ModelName,
   Client, ClientCode, ClientName,
-  Identity, Serial, Version, iccid, imsi
+  Identity, Version, Serial, Addr, iccid, imsi
 )
 AS
   SELECT d.id, d.document,
          m.vendor, m.vendorcode, m.vendorname,
          d.model, m.code, m.name,
          d.client, c.code, c.fullname,
-         d.identity, d.version, d.serial, d.iccid, d.imsi
+         d.identity, d.version, d.serial, d.addr, d.iccid, d.imsi
     FROM db.device d INNER JOIN Model m ON m.id = d.model
                       LEFT JOIN Client c ON c.id = d.client;
 
@@ -595,7 +595,7 @@ CREATE OR REPLACE VIEW ObjectDevice (Id, Object, Parent,
   Vendor, VendorCode, VendorName,
   Model, ModelCode, ModelName,
   Client, ClientCode, ClientName,
-  Identity, Serial, Version, iccid, imsi,
+  Identity, Version, Serial, Addr, iccid, imsi,
   Label, Description,
   StateType, StateTypeCode, StateTypeName,
   State, StateCode, StateLabel, LastUpdate,
@@ -611,7 +611,7 @@ AS
          d.vendor, d.vendorcode, d.vendorname,
          d.model, d.modelcode, d.modelname,
          d.client, d.clientcode, d.clientname,
-         d.identity, d.serial, d.version, d.iccid, d.imsi,
+         d.identity, d.version, d.serial, d.addr, d.iccid, d.imsi,
          o.label, o.description,
          o.statetype, o.statetypecode, o.statetypename,
          o.state, o.statecode, o.statelabel, o.lastupdate,

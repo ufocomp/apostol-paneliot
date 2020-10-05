@@ -1867,17 +1867,17 @@ BEGIN
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Устройство на связи', 'EventDeviceHeartbeat();');
           END IF;
 
-          IF rec_action.code = 'Available' THEN
+          IF rec_action.code = 'available' THEN
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Устройство доступно', 'EventDeviceAvailable();');
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Смена состояния', 'ChangeObjectState();');
           END IF;
 
-          IF rec_action.code = 'Unavailable' THEN
+          IF rec_action.code = 'unavailable' THEN
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Устройство недоступно', 'EventDeviceUnavailable();');
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Смена состояния', 'ChangeObjectState();');
           END IF;
 
-          IF rec_action.code = 'Faulted' THEN
+          IF rec_action.code = 'faulted' THEN
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Устройство неисправно', 'EventDeviceFaulted();');
             PERFORM AddEvent(rec_class.id, nEvent, rec_action.id, 'Смена состояния', 'ChangeObjectState();');
           END IF;
