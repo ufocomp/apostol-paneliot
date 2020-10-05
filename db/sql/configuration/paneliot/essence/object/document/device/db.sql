@@ -52,7 +52,9 @@ BEGIN
     SELECT NEW.document INTO NEW.id;
   END IF;
 
-  RAISE DEBUG 'Создано устройство Id: %', NEW.ID;
+  INSERT INTO db.aou SELECT NEW.document, GetGroup('user'), B'000', B'100';
+
+  RAISE DEBUG 'Создано устройство Id: %', NEW.id;
 
   RETURN NEW;
 END;
