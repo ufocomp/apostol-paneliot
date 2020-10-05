@@ -73,11 +73,11 @@
         <div class="row">
             <div class="col p-2 bd-highlight">
                 <div class="card">
-                    <h5 class="card-header">Кто Я</h5>
+                    <h5 class="card-header">Клиенты</h5>
                     <div class="card-body">
-                        <div id="table-whoami" class="table-responsive"></div>
+                        <div id="table-client" class="table-responsive"></div>
                         <div class="float-right mt-3">
-                            <button type="button" class="btn btn-secondary" onclick="GetWhoAmI()">Обновить</button>
+                            <button type="button" class="btn btn-secondary" onclick="GetClient()">Обновить</button>
                         </div>
                     </div>
                 </div>
@@ -87,11 +87,39 @@
         <div class="row">
             <div class="col p-2 bd-highlight">
                 <div class="card">
-                    <h5 class="card-header">Клиенты</h5>
+                    <h5 class="card-header">Измерительные приборы</h5>
                     <div class="card-body">
-                        <div id="table-client" class="table-responsive"></div>
+                        <div id="table-device" class="table-responsive"></div>
                         <div class="float-right mt-3">
-                            <button type="button" class="btn btn-secondary" onclick="GetStaff()">Обновить</button>
+                            <button type="button" class="btn btn-secondary" onclick="GetDevice()">Обновить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col p-2 bd-highlight">
+                <div class="card">
+                    <h5 class="card-header">Показания измерительных приборов</h5>
+                    <div class="card-body">
+                        <div id="table-meter-value" class="table-responsive"></div>
+                        <div class="float-right mt-3">
+                            <button type="button" class="btn btn-secondary" onclick="GetMeterValue()">Обновить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col p-2 bd-highlight">
+                <div class="card">
+                    <h5 class="card-header">Кто Я</h5>
+                    <div class="card-body">
+                        <div id="table-whoami" class="table-responsive"></div>
+                        <div class="float-right mt-3">
+                            <button type="button" class="btn btn-secondary" onclick="GetWhoAmI()">Обновить</button>
                         </div>
                     </div>
                 </div>
@@ -474,7 +502,12 @@
             obj = json[x];
 
             for (i in obj) {
-                txt += `<td scope="row">${obj[i]}</td>`;
+                const value = obj[i];
+                if (typeof value === 'object') {
+                    txt += `<td scope="row">${JSON.stringify(value, undefined, 2)}</td>`;
+                } else {
+                    txt += `<td scope="row">${value}</td>`;
+                }
             }
 
             txt += '</tr>';
@@ -612,7 +645,7 @@
         return result;
     }
 
-    function GetStaff() {
+    function GetClient() {
         let params = {
             fields: ['id', 'statelabel', 'classlabel', 'typecode', 'typename', 'code', 'label', 'fullname', 'localecode', 'localedescription', 'operdate', 'class', 'state']
         };
@@ -622,6 +655,39 @@
         }).then((json) => {
             if (!empty(json)) {
                 $('#table-client').html(JsonToActionTable(json));
+            }
+        }).catch((e) => {
+            console.log(e.message);
+        });
+    }
+
+    function GetDevice() {
+        let params = {
+            fields: ['id', 'statelabel', 'classlabel', 'typecode', 'typename', 'identity', 'serial', 'addr', 'label', 'operdate', 'class', 'state']
+        };
+
+        TokenFetch('/device/list', 'POST', JSON.stringify(params), {
+            'Content-Type': 'application/json'
+        }).then((json) => {
+            if (!empty(json)) {
+                $('#table-device').html(JsonToActionTable(json));
+            }
+        }).catch((e) => {
+            console.log(e.message);
+        });
+    }
+
+    function GetMeterValue() {
+        let params = {
+            fields: ['id', 'device', 'connectorid', 'transactionid', 'metervalue', 'validfromdate', 'validtodate'],
+            orderby: ['device', 'validfromdate desc']
+        };
+
+        TokenFetch('/device/meter_value/list', 'POST', JSON.stringify(params), {
+            'Content-Type': 'application/json'
+        }).then((json) => {
+            if (!empty(json)) {
+                $('#table-meter-value').html(JsonToTable(json));
             }
         }).catch((e) => {
             console.log(e.message);
@@ -673,7 +739,7 @@
             if (!empty(json)) {
 
                 if (code === 'client') {
-                    GetStaff();
+                    GetClient();
                 }
 
                 GetEvents();
@@ -698,7 +764,9 @@
 
     function Update() {
         GetWhoAmI();
-        GetStaff();
+        GetClient();
+        GetDevice();
+        GetMeterValue();
         GetEvents();
     }
 
