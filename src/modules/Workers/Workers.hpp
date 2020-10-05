@@ -28,6 +28,7 @@ Author:
 #include "WebSocketAPI/WebSocketAPI.hpp"
 #include "AppServer/AppServer.hpp"
 #include "AuthServer/AuthServer.hpp"
+#include "ConfirmEmail/ConfirmEmail.hpp"
 #include "WebServer/WebServer.hpp"
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -35,6 +36,7 @@ static inline void CreateWorkers(CModuleProcess *AProcess) {
     CWebSocketAPI::CreateModule(AProcess);
     CAppServer::CreateModule(AProcess);
     CAuthServer::CreateModule(AProcess);
+    CConfirmEmail::CreateModule(AProcess);
     CWebServer::CreateModule(AProcess);
 }
 

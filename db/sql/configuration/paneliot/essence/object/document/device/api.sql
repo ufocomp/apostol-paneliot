@@ -45,18 +45,15 @@ $$ LANGUAGE plpgsql
 -- FUNCTION api.add_device -----------------------------------------------------
 --------------------------------------------------------------------------------
 /**
- * Обновляет данные зарядной станции.
- * @param {numeric} pId - Идентификатор зарядной станции (api.get_device)
+ * Создает устройтсво.
  * @param {numeric} pParent - Идентификатор родителя | null
  * @param {varchar} pType - Tип зарядной станции
+ * @param {varchar} pModel - Required. This contains a value that identifies the model of the Device.
  * @param {numeric} pClient - Идентификатор клиента | null
  * @param {varchar} pIdentity - Строковый идентификатор зарядной станции
- * @param {varchar} pModel - Required. This contains a value that identifies the model of the Device.
- * @param {varchar} pVendor - Required. This contains a value that identifies the vendor of the Device.
  * @param {varchar} pVersion - Optional. This contains the firmware version of the Device.
  * @param {varchar} pSerial - Optional. This contains a value that identifies the serial number of the Device.
- * @param {varchar} pBoxSerialNumber - Optional. This contains a value that identifies the serial number of the Charge Box inside the Device. Deprecated, will be removed in future version.
- * @param {varchar} pMeterSerialNumber - Optional. This contains the serial number of the main electrical meter of the Device.
+ * @param {varchar} pAddr - Optional. This contains a value that identifies the network number of the Device.
  * @param {varchar} piccid - Optional. This contains the ICCID of the modem’s SIM card.
  * @param {varchar} pimsi - Optional. This contains the IMSI of the modem’s SIM card.
  * @param {varchar} pLabel - Метка
@@ -66,44 +63,40 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION api.add_device (
   pParent               numeric,
   pType                 varchar,
+  pModel                numeric,
   pClient               numeric,
   pIdentity             text,
-  pModel                varchar,
-  pVendor               varchar,
-  pVersion              varchar,
-  pSerialNumber         varchar,
-  pBoxSerialNumber      varchar,
-  pMeterSerialNumber    varchar,
-  piccid                varchar,
-  pimsi                 varchar,
+  pVersion              varchar default null,
+  pSerial               varchar default null,
+  pAddr                 varchar default null,
+  piccid                varchar default null,
+  pimsi                 varchar default null,
   pLabel                varchar default null,
   pDescription          text default null
 ) RETURNS               numeric
 AS $$
 BEGIN
-  RETURN CreateDevice(pParent, CodeToType(lower(coalesce(pType, 'public')), 'device'), pClient, pIdentity, pModel, pVendor, pVersion,
-    pSerialNumber, pBoxSerialNumber, pMeterSerialNumber, piccid, pimsi, pLabel, pDescription);
+  RETURN CreateDevice(pParent, CodeToType(lower(coalesce(pType, 'meter')), 'device'),
+      pModel, pClient, pIdentity, pVersion, pSerial, pAddr, piccid, pimsi, pLabel, pDescription);
 END;
 $$ LANGUAGE plpgsql
    SECURITY DEFINER
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- FUNCTION api.update_device --------------------------------------------
+-- FUNCTION api.update_device --------------------------------------------------
 --------------------------------------------------------------------------------
 /**
- * Меняет данные зарядной станции.
- * @param {numeric} pId - Идентификатор зарядной станции
+ * Меняет данные устройства.
+ * @param {numeric} pId - Идентификатор зарядной станции (api.get_device)
  * @param {numeric} pParent - Идентификатор родителя | null
  * @param {varchar} pType - Tип зарядной станции
+ * @param {varchar} pModel - Required. This contains a value that identifies the model of the Device.
  * @param {numeric} pClient - Идентификатор клиента | null
  * @param {varchar} pIdentity - Строковый идентификатор зарядной станции
- * @param {varchar} pModel - Required. This contains a value that identifies the model of the Device.
- * @param {varchar} pVendor - Required. This contains a value that identifies the vendor of the Device.
  * @param {varchar} pVersion - Optional. This contains the firmware version of the Device.
- * @param {varchar} pSerialNumber - Optional. This contains a value that identifies the serial number of the Device.
- * @param {varchar} pBoxSerialNumber - Optional. This contains a value that identifies the serial number of the Charge Box inside the Device. Deprecated, will be removed in future version.
- * @param {varchar} pMeterSerialNumber - Optional. This contains the serial number of the main electrical meter of the Device.
+ * @param {varchar} pSerial - Optional. This contains a value that identifies the serial number of the Device.
+ * @param {varchar} pAddr - Optional. This contains a value that identifies the network number of the Device.
  * @param {varchar} piccid - Optional. This contains the ICCID of the modem’s SIM card.
  * @param {varchar} pimsi - Optional. This contains the IMSI of the modem’s SIM card.
  * @param {varchar} pLabel - Метка
@@ -113,15 +106,13 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION api.update_device (
   pId                   numeric,
   pParent               numeric default null,
-  pType                 varchar default null,
+  pType                 numeric default null,
+  pModel                numeric default null,
   pClient               numeric default null,
   pIdentity             text default null,
-  pModel                varchar default null,
-  pVendor               varchar default null,
-  pVersion              varchar default null,
-  pSerialNumber         varchar default null,
-  pBoxSerialNumber      varchar default null,
-  pMeterSerialNumber    varchar default null,
+  pVersion              text default null,
+  pSerial               varchar default null,
+  pAddr                 varchar default null,
   piccid                varchar default null,
   pimsi                 varchar default null,
   pLabel                varchar default null,
@@ -144,29 +135,26 @@ BEGIN
     SELECT o.type INTO nType FROM db.object o WHERE o.id = pId;
   END IF;
 
-  PERFORM EditDevice(nId, pParent, nType, pClient, pIdentity, pModel, pVendor, pVersion,
-    pSerialNumber, pBoxSerialNumber, pMeterSerialNumber, piccid, pimsi, pLabel, pDescription);
+  PERFORM EditDevice(nId, pParent, nType, pModel, pClient, pIdentity, pVersion, pSerial, pAddr, piccid, pimsi, pLabel, pDescription);
 END;
 $$ LANGUAGE plpgsql
    SECURITY DEFINER
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- FUNCTION api.set_device -----------------------------------------------
+-- FUNCTION api.set_device -----------------------------------------------------
 --------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION api.set_device (
   pId                   numeric,
   pParent               numeric default null,
-  pType                 varchar default null,
+  pType                 numeric default null,
+  pModel                numeric default null,
   pClient               numeric default null,
   pIdentity             text default null,
-  pModel                varchar default null,
-  pVendor               varchar default null,
-  pVersion              varchar default null,
-  pSerialNumber         varchar default null,
-  pBoxSerialNumber      varchar default null,
-  pMeterSerialNumber    varchar default null,
+  pVersion              text default null,
+  pSerial               varchar default null,
+  pAddr                 varchar default null,
   piccid                varchar default null,
   pimsi                 varchar default null,
   pLabel                varchar default null,
@@ -175,9 +163,9 @@ CREATE OR REPLACE FUNCTION api.set_device (
 AS $$
 BEGIN
   IF pId IS NULL THEN
-    pId := api.add_device(pParent, pType, pClient, pIdentity, pModel, pVendor, pVersion, pSerialNumber, pBoxSerialNumber, pMeterSerialNumber, piccid, pimsi, pLabel, pDescription);
+    pId := api.add_device(pParent, pType, pModel, pClient, pIdentity, pVersion, pSerial, pAddr, piccid, pimsi, pLabel, pDescription);
   ELSE
-    PERFORM api.update_device(pId, pParent, pType, pClient, pIdentity, pModel, pVendor, pVersion, pSerialNumber, pBoxSerialNumber, pMeterSerialNumber, piccid, pimsi, pLabel, pDescription);
+    PERFORM api.update_device(pId, pParent, pType, pModel, pClient, pIdentity, pVersion, pSerial, pAddr, piccid, pimsi, pLabel, pDescription);
   END IF;
 
   RETURN QUERY SELECT * FROM api.device WHERE id = pId;
@@ -187,7 +175,7 @@ $$ LANGUAGE plpgsql
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- api.get_device --------------------------------------------------------
+-- api.get_device --------------------------------------------------------------
 --------------------------------------------------------------------------------
 /**
  * Возвращает зарядную станцию по идентификатору
@@ -204,7 +192,7 @@ $$ LANGUAGE SQL
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- api.get_device --------------------------------------------------------
+-- api.get_device --------------------------------------------------------------
 --------------------------------------------------------------------------------
 /**
  * Возвращает зарядную станцию по строковому идентификатору
@@ -221,7 +209,7 @@ $$ LANGUAGE SQL
    SET search_path = kernel, pg_temp;
 
 --------------------------------------------------------------------------------
--- api.list_device -------------------------------------------------------
+-- api.list_device -------------------------------------------------------------
 --------------------------------------------------------------------------------
 /**
  * Возвращает список зарядных станций.

@@ -10,6 +10,7 @@ CREATE TABLE db.device (
     identity            text NOT NULL,
     version             text,
     serial              varchar(25),
+    addr                varchar(25),
     iccid               varchar(20),
     imsi                varchar(20),
     CONSTRAINT fk_device_document FOREIGN KEY (document) REFERENCES db.document(id),
@@ -27,6 +28,7 @@ COMMENT ON COLUMN db.device.client IS 'Идентификатор клиента
 COMMENT ON COLUMN db.device.identity IS 'Строковый идентификатор.';
 COMMENT ON COLUMN db.device.version IS 'Версия.';
 COMMENT ON COLUMN db.device.serial IS 'Серийный номер.';
+COMMENT ON COLUMN db.device.addr IS 'Сетевой адрес.';
 COMMENT ON COLUMN db.device.iccid IS 'Integrated circuit card identifier (ICCID) — уникальный серийный номер SIM-карты.';
 COMMENT ON COLUMN db.device.imsi IS 'International Mobile Subscriber Identity (IMSI) — международный идентификатор мобильного абонента (индивидуальный номер абонента).';
 
@@ -38,6 +40,7 @@ CREATE UNIQUE INDEX ON db.device (identity);
 
 CREATE INDEX ON db.device (model);
 CREATE INDEX ON db.device (serial);
+CREATE INDEX ON db.device (addr);
 
 --------------------------------------------------------------------------------
 
@@ -96,6 +99,7 @@ CREATE OR REPLACE FUNCTION CreateDevice (
   pIdentity             text,
   pVersion              text,
   pSerial               varchar default null,
+  pAddr                 varchar default null,
   piccid                varchar default null,
   pimsi                 varchar default null,
   pLabel                varchar default null,
@@ -121,8 +125,8 @@ BEGIN
 
   nDocument := CreateDocument(pParent, pType, coalesce(pLabel, pIdentity), pDescription);
 
-  INSERT INTO db.device (id, document, model, client, identity, version, serial, iccid, imsi)
-  VALUES (nDocument, nDocument, pModel, pClient, pIdentity, pVersion, pSerial, piccid, pimsi);
+  INSERT INTO db.device (id, document, model, client, identity, version, serial, addr, iccid, imsi)
+  VALUES (nDocument, nDocument, pModel, pClient, pIdentity, pVersion, pSerial, pAddr, piccid, pimsi);
 
   nMethod := GetMethod(nClass, null, GetAction('create'));
   PERFORM ExecuteMethod(nDocument, nMethod);
@@ -145,10 +149,11 @@ CREATE OR REPLACE FUNCTION EditDevice (
   pClient               numeric default null,
   pIdentity             text default null,
   pVersion              text default null,
-  pSerial               text default null,
-  piccid                text default null,
-  pimsi                 text default null,
-  pLabel                text default null,
+  pSerial               varchar default null,
+  pAddr                 varchar default null,
+  piccid                varchar default null,
+  pimsi                 varchar default null,
+  pLabel                varchar default null,
   pDescription          text default null
 ) RETURNS               void
 AS $$
@@ -175,6 +180,7 @@ BEGIN
          identity = coalesce(pIdentity, identity),
          version = CheckNull(coalesce(pVersion, version, '<null>')),
          serial = CheckNull(coalesce(pSerial, serial, '<null>')),
+         addr = CheckNull(coalesce(pAddr, addr, '<null>')),
          iccid = CheckNull(coalesce(piccid, iccid, '<null>')),
          imsi = CheckNull(coalesce(pimsi, imsi, '<null>'))
    WHERE id = pId;
@@ -366,7 +372,7 @@ CREATE TABLE db.transaction (
 
 --------------------------------------------------------------------------------
 
-COMMENT ON TABLE db.transaction IS 'Уведомление о статусе.';
+COMMENT ON TABLE db.transaction IS 'Транзауция.';
 
 COMMENT ON COLUMN db.transaction.id IS 'Идентификатор.';
 COMMENT ON COLUMN db.transaction.card IS 'Пластиковая карта.';
@@ -579,7 +585,7 @@ AS
 GRANT SELECT ON Device TO administrator;
 
 --------------------------------------------------------------------------------
--- ObjectDevice -----------------------------------------------------------
+-- ObjectDevice ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW ObjectDevice (Id, Object, Parent,
