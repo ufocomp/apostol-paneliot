@@ -41,7 +41,8 @@ CREATE TABLE stream.log (
     identity	text NOT NULL,
     request     bytea,
     response	bytea,
-    runtime     interval
+    runtime     interval,
+    error       text
 );
 
 COMMENT ON TABLE stream.log IS 'Лог потоковых данных.';
@@ -54,6 +55,7 @@ COMMENT ON COLUMN stream.log.identity IS 'Идентификатор';
 COMMENT ON COLUMN stream.log.request IS 'Запрос';
 COMMENT ON COLUMN stream.log.response IS 'Ответ';
 COMMENT ON COLUMN stream.log.runtime IS 'Время выполнения запроса';
+COMMENT ON COLUMN stream.log.error IS 'Информация об ошибке';
 
 CREATE INDEX ON stream.log (protocol);
 CREATE INDEX ON stream.log (identity);
@@ -68,14 +70,15 @@ CREATE OR REPLACE FUNCTION stream.WriteToLog (
   pIdentity	text,
   pRequest	bytea default null,
   pResponse	bytea default null,
-  pRunTime	interval default null
+  pRunTime	interval default null,
+  pError	text default null
 ) RETURNS	numeric
 AS $$
 DECLARE
   nId		numeric;
 BEGIN
-  INSERT INTO stream.log (protocol, identity, request, response, runtime)
-  VALUES (pProtocol, pIdentity, pRequest, pResponse, pRunTime)
+  INSERT INTO stream.log (protocol, identity, request, response, runtime, error)
+  VALUES (pProtocol, pIdentity, pRequest, pResponse, pRunTime, pError)
   RETURNING id INTO nId;
 
   RETURN nId;
@@ -104,12 +107,13 @@ $$ LANGUAGE plpgsql
 --------------------------------------------------------------------------------
 
 CREATE OR REPLACE VIEW streamLog (Id, DateTime, UserName, Protocol,
-  Identity, Request, RequestLength, Response, ResponseLength, RunTime)
+  Identity, Request, RequestLength, Response, ResponseLength, RunTime, Error)
 AS
   SELECT id, datetime, username, protocol, identity,
          encode(request, 'hex'), octet_length(request),
          encode(response, 'hex'), octet_length(response),
-         round(extract(second from runtime)::numeric, 3)
+         round(extract(second from runtime)::numeric, 3),
+         error
     FROM stream.log;
 
 --------------------------------------------------------------------------------
@@ -1215,7 +1219,7 @@ WHEN others THEN
 
   PERFORM SetErrorMessage(vError);
 
-  PERFORM kernel.WriteToEventLog('E', 8000, vError);
+  PERFORM stream.WriteTolog(pProtocol, coalesce(pIdentity, 'null'), bRequest, bResponse, age(clock_timestamp(), tsBegin), vError);
 
   RETURN null;
 END
@@ -1230,36 +1234,12 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION stream.SetSession (
 ) RETURNS       text
 AS $$
-DECLARE
-  nUserId       numeric;
-  nArea         numeric;
-  nInterface	numeric;
-
-  vSession      text;
 BEGIN
-  IF session_user <> 'stream' THEN
+  IF session_user <> 'apibot' THEN
     PERFORM AccessDeniedForUser(session_user);
   END IF;
 
-  nUserId := GetUser('stream');
-
-  IF nUserId IS NOT NULL THEN
-    SELECT code INTO vSession FROM db.session WHERE userid = nUserId;
-
-    IF NOT FOUND THEN
-      nArea := GetDefaultArea(nUserId);
-      nInterface := GetDefaultInterface(nUserId);
-
-      INSERT INTO db.session (userid, area, interface, oauth2)
-      VALUES (nUserId, nArea, nInterface, CreateSystemOAuth2())
-      RETURNING code INTO vSession;
-    END IF;
-
-    PERFORM SetCurrentSession(vSession);
-    PERFORM SetCurrentUserId(nUserId);
-  END IF;
-
-  RETURN vSession;
+  RETURN GetSession(GetUser('apibot'));
 END
 $$ LANGUAGE plpgsql
    SECURITY DEFINER

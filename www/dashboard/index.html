@@ -677,10 +677,34 @@
         });
     }
 
+    function getFormattedDateTime(date) {
+        const year = date.getUTCFullYear();
+
+        let month = (1 + date.getUTCMonth()).toString();
+        month = month.length > 1 ? month : '0' + month;
+
+        let day = date.getUTCDate().toString();
+        day = day.length > 1 ? day : '0' + day;
+
+        let hours = date.getUTCHours().toString();
+        hours = hours.length > 1 ? hours : '0' + hours;
+
+        let minutes = date.getUTCMinutes().toString();
+        minutes = minutes.length > 1 ? minutes : '0' + minutes;
+
+        let seconds = date.getUTCSeconds().toString();
+        seconds = seconds.length > 1 ? seconds : '0' + seconds;
+
+        return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+    }
+
     function GetMeterValue() {
+        let date = getFormattedDateTime(new Date());
+
         let params = {
             fields: ['id', 'device', 'connectorid', 'transactionid', 'metervalue', 'validfromdate', 'validtodate'],
-            orderby: ['device', 'validfromdate desc']
+            search: [{field: "validfromdate", compare: "LEQ", value: `${date}`}, {field: "validtodate", compare: "GTR", value: `${date}`}],
+            orderby: ['device', 'connectorid']
         };
 
         TokenFetch('/device/meter_value/list', 'POST', JSON.stringify(params), {
