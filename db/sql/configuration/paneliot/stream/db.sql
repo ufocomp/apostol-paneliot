@@ -1234,12 +1234,18 @@ $$ LANGUAGE plpgsql
 CREATE OR REPLACE FUNCTION stream.SetSession (
 ) RETURNS       text
 AS $$
+DECLARE
+  vSession      text;
 BEGIN
   IF session_user <> 'apibot' THEN
     PERFORM AccessDeniedForUser(session_user);
   END IF;
 
-  RETURN GetSession(GetUser('apibot'));
+  vSession := GetSession(GetUser('admin'));
+
+  PERFORM SetArea(GetArea('default'));
+
+  RETURN vSession;
 END
 $$ LANGUAGE plpgsql
    SECURITY DEFINER
