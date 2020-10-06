@@ -52,7 +52,7 @@ BEGIN
     SELECT NEW.document INTO NEW.id;
   END IF;
 
-  INSERT INTO db.aou SELECT NEW.document, GetGroup('user'), B'000', B'100';
+  UPDATE db.aou SET allow = B'110' WHERE object = NEW.document AND userid = GetGroup('user');
 
   RAISE DEBUG 'Создано устройство Id: %', NEW.id;
 
