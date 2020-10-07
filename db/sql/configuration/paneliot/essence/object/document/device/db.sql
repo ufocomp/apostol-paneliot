@@ -226,8 +226,8 @@ CREATE TABLE db.status_notification (
     errorCode       varchar(30) NOT NULL,
     info            text,
     vendorErrorCode	varchar(50),
-    validFromDate	timestamptz DEFAULT NOW() NOT NULL,
-    validToDate		timestamptz DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
+    validFromDate	timestamp DEFAULT NOW() NOT NULL,
+    validToDate		timestamp DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
     CONSTRAINT fk_status_notification_device FOREIGN KEY (device) REFERENCES db.device(id)
 );
 
@@ -264,14 +264,14 @@ CREATE OR REPLACE FUNCTION AddStatusNotification (
   pErrorCode		text,
   pInfo			    text,
   pVendorErrorCode	text,
-  pTimeStamp		timestamptz
+  pTimeStamp		timestamp
 ) RETURNS 		    numeric
 AS $$
 DECLARE
   nId			    numeric;
 
-  dtDateFrom 		timestamptz;
-  dtDateTo 		    timestamptz;
+  dtDateFrom 		timestamp;
+  dtDateTo 		    timestamp;
 BEGIN
   -- получим дату значения в текущем диапозоне дат
   SELECT validFromDate, validToDate INTO dtDateFrom, dtDateTo
@@ -328,7 +328,7 @@ GRANT SELECT ON StatusNotification TO administrator;
 CREATE OR REPLACE FUNCTION GetJsonStatusNotification (
   pDevice  numeric,
   pConnectorId  integer default null,
-  pDate         timestamptz default current_timestamp at time zone 'utc'
+  pDate         timestamp default current_timestamp at time zone 'utc'
 ) RETURNS	    json
 AS $$
 DECLARE
@@ -366,8 +366,8 @@ CREATE TABLE db.transaction (
     reservationId	integer,
     reason		    text,
     data		    json,
-    dateStart		timestamptz NOT NULL,
-    dateStop		timestamptz DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
+    dateStart		timestamp NOT NULL,
+    dateStop		timestamp DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
     CONSTRAINT fk_transaction_card FOREIGN KEY (card) REFERENCES db.card(id),
     CONSTRAINT fk_transaction_device FOREIGN KEY (device) REFERENCES db.device(id)
 );
@@ -405,7 +405,7 @@ CREATE OR REPLACE FUNCTION StartTransaction (
   pConnectorId		integer,
   pMeterStart		integer,
   pReservationId	integer,
-  pTimeStamp		timestamptz
+  pTimeStamp		timestamp
 ) RETURNS 		    numeric
 AS $$
 DECLARE
@@ -430,7 +430,7 @@ CREATE OR REPLACE FUNCTION StopTransaction (
   pMeterStop	integer,
   pReason		text,
   pData			json,
-  pTimeStamp	timestamptz
+  pTimeStamp	timestamp
 ) RETURNS 		integer
 AS $$
 DECLARE
@@ -475,8 +475,8 @@ CREATE TABLE db.meter_value (
     connectorId		integer NOT NULL,
     transactionId	numeric(12),
     meterValue		json NOT NULL,
-    validFromDate	timestamptz DEFAULT NOW() NOT NULL,
-    validToDate		timestamptz DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
+    validFromDate	timestamp DEFAULT NOW() NOT NULL,
+    validToDate		timestamp DEFAULT TO_DATE('4433-12-31', 'YYYY-MM-DD') NOT NULL,
     CONSTRAINT fk_meter_value_device FOREIGN KEY (device) REFERENCES db.device(id),
     CONSTRAINT fk_meter_value_transactionId FOREIGN KEY (transactionId) REFERENCES db.transaction(id)
 );
@@ -510,14 +510,14 @@ CREATE OR REPLACE FUNCTION AddMeterValue (
   pConnectorId		integer,
   pTransactionId	numeric,
   pMeterValue		json,
-  pTimeStamp		timestamptz default now()
+  pTimeStamp		timestamp default now()
 ) RETURNS 		    numeric
 AS $$
 DECLARE
   nId			    numeric;
 
-  dtDateFrom 		timestamptz;
-  dtDateTo 		    timestamptz;
+  dtDateFrom 		timestamp;
+  dtDateTo 		    timestamp;
 BEGIN
   -- получим дату значения в текущем диапозоне дат
   SELECT validFromDate, validToDate INTO dtDateFrom, dtDateTo
