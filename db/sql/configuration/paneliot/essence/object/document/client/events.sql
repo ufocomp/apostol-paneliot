@@ -75,24 +75,27 @@ CREATE OR REPLACE FUNCTION EventClientEnable (
 ) RETURNS	void
 AS $$
 DECLARE
+  r         record;
   nUserId	numeric;
 BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
 
   IF nUserId IS NOT NULL THEN
     PERFORM UserUnLock(nUserId);
+
     PERFORM DeleteGroupForMember(nUserId, GetGroup('guest'));
 
     PERFORM AddMemberToGroup(nUserId, GetGroup('user'));
     PERFORM AddMemberToArea(nUserId, current_area());
 
     PERFORM SetDefaultArea(current_area(), nUserId);
-    PERFORM SetArea(current_area(), nUserId);
-
-    UPDATE db.session SET area = current_area() WHERE userid = nUserId;
-
     PERFORM SetDefaultInterface(GetInterface('I:1:0:3'), nUserId);
-    PERFORM SetInterface(GetInterface('I:1:0:3'), nUserId);
+
+    FOR r IN SELECT code FROM db.session WHERE userid = nUserId
+    LOOP
+      PERFORM SetArea(GetDefaultArea(nUserId), nUserId, r.code);
+      PERFORM SetInterface(GetDefaultInterface(nUserId), nUserId, r.code);
+    END LOOP;
 
     PERFORM EventClientConfirmEmail(pObject);
   END IF;
@@ -110,12 +113,29 @@ CREATE OR REPLACE FUNCTION EventClientDisable (
 ) RETURNS	void
 AS $$
 DECLARE
+  r         record;
   nUserId	numeric;
 BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
 
   IF nUserId IS NOT NULL THEN
     PERFORM UserLock(nUserId);
+
+    PERFORM DeleteGroupForMember(nUserId);
+    PERFORM DeleteAreaForMember(nUserId);
+    PERFORM DeleteInterfaceForMember(nUserId);
+
+    PERFORM AddMemberToGroup(nUserId, GetGroup('guest'));
+    PERFORM AddMemberToArea(nUserId, GetArea('guest'));
+
+    PERFORM SetDefaultArea(GetArea('guest'), nUserId);
+    PERFORM SetDefaultInterface(GetInterface('I:1:0:4'), nUserId);
+
+    FOR r IN SELECT code FROM db.session WHERE userid = nUserId
+    LOOP
+      PERFORM SetArea(GetDefaultArea(nUserId), nUserId, r.code);
+      PERFORM SetInterface(GetDefaultInterface(nUserId), nUserId, r.code);
+    END LOOP;
   END IF;
 
   PERFORM WriteToEventLog('M', 1015, 'Клиент закрыт.', pObject);
@@ -133,11 +153,20 @@ AS $$
 DECLARE
   nUserId	numeric;
 BEGIN
-  SELECT userid INTO nUserId FROM client WHERE id = pObject;
+  SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
+
+  IF nUserId IS NOT NULL THEN
+  END IF;
 
   IF nUserId IS NOT NULL THEN
     DELETE FROM db.session WHERE userid = nUserId;
+
     PERFORM UserLock(nUserId);
+
+    PERFORM DeleteGroupForMember(nUserId);
+    PERFORM DeleteAreaForMember(nUserId);
+    PERFORM DeleteInterfaceForMember(nUserId);
+
     UPDATE db.user SET pswhash = null WHERE id = nUserId;
   END IF;
 
