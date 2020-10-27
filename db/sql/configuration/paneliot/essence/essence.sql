@@ -191,7 +191,6 @@ RETURNS void
 AS $$
 DECLARE
   rec_class	record;
-  nType     numeric;
 BEGIN
   IF session_user <> 'kernel' THEN
     IF NOT IsUserRole(GetGroup('administrator')) THEN
@@ -208,11 +207,11 @@ BEGIN
     END IF;
 
     IF rec_class.code = 'inbox' THEN
-      PERFORM AddType(rec_class.id, 'inbox.message', 'Входящие', 'Входящие сообщения.');
+      PERFORM AddType(rec_class.id, 'message.inbox', 'Входящие', 'Входящие сообщения.');
     END IF;
 
     IF rec_class.code = 'outbox' THEN
-      PERFORM AddType(rec_class.id, 'outbox.message', 'Исходящие', 'Исходящие сообщения.');
+      PERFORM AddType(rec_class.id, 'message.outbox', 'Исходящие', 'Исходящие сообщения.');
     END IF;
 
     IF rec_class.code = 'calendar' THEN
@@ -228,6 +227,7 @@ BEGIN
       PERFORM AddType(rec_class.id, 'system.agent', 'Системные сообщения', 'Агент для доставки системных сообщений.');
       PERFORM AddType(rec_class.id, 'email.agent', 'Электронная почта', 'Агент для обработки электронной почты.');
       PERFORM AddType(rec_class.id, 'sms.agent', 'SMS', 'Агент для доставки коротких сообщений.');
+      PERFORM AddType(rec_class.id, 'push.agent', 'Push', 'Агент для доставки push сообщений.');
       PERFORM AddType(rec_class.id, 'stream.agent', 'Потоковые данные', 'Агент для обработки потоковых данных.');
     END IF;
 

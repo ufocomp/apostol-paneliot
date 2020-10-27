@@ -12,6 +12,7 @@ CREATE OR REPLACE FUNCTION EventClientCreate (
 AS $$
 BEGIN
   PERFORM WriteToEventLog('M', 1010, 'Клиент создан.', pObject);
+
   PERFORM ExecuteObjectAction(pObject, GetAction('enable'));
 END;
 $$ LANGUAGE plpgsql;
@@ -46,7 +47,7 @@ BEGIN
   new_email = pForm#>'{new, email}';
 
   IF coalesce(old_email, '{}') <> coalesce(new_email, '{}') THEN
-    PERFORM EventClientConfirmEmail(pObject, new_email);
+    PERFORM EventConfirmEmail(pObject, new_email);
   END IF;
 
   PERFORM WriteToEventLog('M', 1012, 'Клиент изменён.', pObject);
@@ -75,8 +76,12 @@ CREATE OR REPLACE FUNCTION EventClientEnable (
 ) RETURNS	void
 AS $$
 DECLARE
-  r         record;
-  nUserId	numeric;
+  r             record;
+
+  nId           numeric;
+  nArea         numeric;
+  nUserId       numeric;
+  nInterface    numeric;
 BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
 
@@ -86,10 +91,26 @@ BEGIN
     PERFORM DeleteGroupForMember(nUserId, GetGroup('guest'));
 
     PERFORM AddMemberToGroup(nUserId, GetGroup('user'));
-    PERFORM AddMemberToArea(nUserId, current_area());
 
-    PERFORM SetDefaultArea(current_area(), nUserId);
-    PERFORM SetDefaultInterface(GetInterface('I:1:0:3'), nUserId);
+    nArea := GetArea('default');
+    SELECT * INTO nId FROM db.member_area WHERE area = nArea AND member = nUserId;
+    IF NOT FOUND THEN
+      PERFORM AddMemberToArea(nUserId, nArea);
+      PERFORM SetDefaultArea(nArea, nUserId);
+    END IF;
+
+    nInterface := GetInterface('I:1:0:0');
+    SELECT * INTO nId FROM db.member_interface WHERE interface = nInterface AND member = nUserId;
+    IF NOT FOUND THEN
+      PERFORM AddMemberToInterface(nUserId, nInterface);
+    END IF;
+
+    nInterface := GetInterface('I:1:0:3');
+    SELECT * INTO nId FROM db.member_interface WHERE interface = nInterface AND member = nUserId;
+    IF NOT FOUND THEN
+      PERFORM AddMemberToInterface(nUserId, nInterface);
+      PERFORM SetDefaultInterface(nInterface, nUserId);
+    END IF;
 
     FOR r IN SELECT code FROM db.session WHERE userid = nUserId
     LOOP
@@ -97,7 +118,7 @@ BEGIN
       PERFORM SetInterface(GetDefaultInterface(nUserId), nUserId, r.code);
     END LOOP;
 
-    PERFORM EventClientConfirmEmail(pObject);
+    PERFORM EventConfirmEmail(pObject);
   END IF;
 
   PERFORM WriteToEventLog('M', 1014, 'Клиент утверждён.', pObject);
@@ -244,7 +265,7 @@ BEGIN
       PERFORM EmailAddressNotVerified(vEmail);
     END IF;
 
-    PERFORM EventClientAccountInfo(pObject);
+    PERFORM EventAccountInfo(pObject);
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -263,29 +284,36 @@ BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
   IF nUserId IS NOT NULL THEN
 	UPDATE db.profile SET email_verified = false WHERE userid = nUserId;
-    PERFORM EventClientConfirmEmail(pObject);
+    PERFORM EventConfirmEmail(pObject);
   END IF;
 END;
 $$ LANGUAGE plpgsql;
 
 --------------------------------------------------------------------------------
--- EventClientConfirmEmail -----------------------------------------------------
+-- EventConfirmEmail -----------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION EventClientConfirmEmail (
+CREATE OR REPLACE FUNCTION EventConfirmEmail (
   pObject		numeric default context_object(),
   pForm		    jsonb default context_form()
 ) RETURNS		void
 AS $$
 DECLARE
   nUserId       numeric;
+  vCode			text;
   vName			text;
+  vDomain       text;
   vUserName     text;
-  vText			text;
   vEmail		text;
   vProject		text;
   vHost         text;
+  vNoReply      text;
   vSupport		text;
+  vSubject      text;
+  vText			text;
+  vHTML			text;
+  vBody			text;
+  vDescription  text;
   bVerified		bool;
 BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
@@ -295,42 +323,65 @@ BEGIN
 	  UPDATE db.client SET email = pForm WHERE id = nUserId;
 	END IF;
 
-	SELECT username, name, email, email_verified INTO vUserName, vName, vEmail, bVerified
+	SELECT username, name, email, email_verified, locale INTO vUserName, vName, vEmail, bVerified
 	  FROM db.user u INNER JOIN db.profile p ON u.id = p.userid AND u.type = 'U'
 	 WHERE id = nUserId;
 
 	IF vEmail IS NOT NULL AND NOT bVerified THEN
+
 	  vProject := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Name')).vString;
 	  vHost := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Host')).vString;
-	  vSupport := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Support')).vString;
+	  vDomain := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Domain')).vString;
 
-      vText := 'Подтверждение email: ' || vEmail;
+	  vCode := GetVerificationCode(NewVerificationCode(nUserId));
 
-      PERFORM SendMessage(CreateMessage(pObject, GetType('outbox.message'), GetAgent('smtp.agent'), 'noreply', vEmail, 'Пожалуйста, подтвердите адрес вашей электронной почты', GetConfirmEmailHTML(vName, vUserName, GetVerificationCode(NewVerificationCode(nUserId)), vProject, vHost, vSupport), vText));
-      PERFORM WriteToEventLog('M', 1110, vText, pObject);
+	  vNoReply := format('noreply@%s', vDomain);
+	  vSupport := format('support@%s', vDomain);
+
+	  IF locale_code() = 'ru' THEN
+        vSubject := 'Подтвердите, пожалуйста, адрес Вашей электронной почты.';
+        vDescription := 'Подтверждение email: ' || vEmail;
+	  ELSE
+        vSubject := 'Please confirm your email address.';
+        vDescription := 'Confirm email: ' || vEmail;
+	  END IF;
+
+	  vText := GetConfirmEmailText(vName, vUserName, vCode, vProject, vHost, vSupport);
+	  vHTML := GetConfirmEmailHTML(vName, vUserName, vCode, vProject, vHost, vSupport);
+
+	  vBody := CreateMailBody(vProject, vNoReply, null, vEmail, vSubject, vText, vHTML);
+
+      PERFORM SendMessage(CreateMessage(pObject, GetType('message.outbox'), GetAgent('smtp.agent'), vNoReply, vEmail, vSubject, vBody, vDescription));
+      PERFORM WriteToEventLog('M', 1110, vDescription, pObject);
     END IF;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
 
 --------------------------------------------------------------------------------
--- EventClientAccountInfo ------------------------------------------------------
+-- EventAccountInfo ------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION EventClientAccountInfo (
+CREATE OR REPLACE FUNCTION EventAccountInfo (
   pObject		numeric default context_object()
 ) RETURNS		void
 AS $$
 DECLARE
   nUserId       numeric;
-  vName			text;
-  vUserName     text;
   vSecret       text;
-  vText			text;
+  vName			text;
+  vDomain       text;
+  vUserName     text;
   vEmail		text;
   vProject		text;
   vHost         text;
+  vNoReply      text;
   vSupport		text;
+  vSubject      text;
+  vText			text;
+  vHTML			text;
+  vBody			text;
+  vDescription  text;
   bVerified		bool;
 BEGIN
   SELECT userid INTO nUserId FROM db.client WHERE id = pObject;
@@ -343,12 +394,26 @@ BEGIN
 	IF vEmail IS NOT NULL AND bVerified THEN
 	  vProject := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Name')).vString;
 	  vHost := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Host')).vString;
-	  vSupport := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Support')).vString;
+	  vDomain := (RegGetValue(RegOpenKey('CURRENT_CONFIG', 'CONFIG\CurrentProject'), 'Domain')).vString;
 
-      vText := 'Информация об учетной записи: ' || vUserName;
+	  vNoReply := format('noreply@%s', vDomain);
+	  vSupport := format('support@%s', vDomain);
 
-      PERFORM SendMessage(CreateMessage(pObject, GetType('outbox.message'), GetAgent('smtp.agent'), 'noreply', vEmail, 'Информация о вашей учетной записи', GetAccountInfoHTML(vName, vUserName, vSecret, vProject, vSupport), vText));
-      PERFORM WriteToEventLog('M', 1110, vText, pObject);
+	  IF locale_code() = 'ru' THEN
+        vSubject := 'Информация о Вашей учетной записи.';
+        vDescription := 'Информация о учетной записи: ' || vUserName;
+	  ELSE
+        vSubject := 'Your account information.';
+        vDescription := 'Account information: ' || vUserName;
+	  END IF;
+
+	  vText := GetAccountInfoText(vName, vUserName, vSecret, vProject, vSupport);
+	  vHTML := GetAccountInfoHTML(vName, vUserName, vSecret, vProject, vSupport);
+
+	  vBody := CreateMailBody(vProject, vNoReply, null, vEmail, vSubject, vText, vHTML);
+
+      PERFORM SendMessage(CreateMessage(pObject, GetType('message.outbox'), GetAgent('smtp.agent'), vNoReply, vEmail, vSubject, vBody, vDescription));
+      PERFORM WriteToEventLog('M', 1110, vDescription, pObject);
     END IF;
   END IF;
 END;
