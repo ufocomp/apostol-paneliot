@@ -225,9 +225,8 @@ BEGIN
 
     IF rec_class.code = 'agent' THEN
       PERFORM AddType(rec_class.id, 'system.agent', 'Системные сообщения', 'Агент для доставки системных сообщений.');
+      PERFORM AddType(rec_class.id, 'api.agent', 'API', 'Агент для выполения API (REST/SOAP/RPC) запросов к внешним системам.');
       PERFORM AddType(rec_class.id, 'email.agent', 'Электронная почта', 'Агент для обработки электронной почты.');
-      PERFORM AddType(rec_class.id, 'sms.agent', 'SMS', 'Агент для доставки коротких сообщений.');
-      PERFORM AddType(rec_class.id, 'push.agent', 'Push', 'Агент для доставки push сообщений.');
       PERFORM AddType(rec_class.id, 'stream.agent', 'Потоковые данные', 'Агент для обработки потоковых данных.');
     END IF;
 
